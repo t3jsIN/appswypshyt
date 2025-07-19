@@ -8,6 +8,7 @@ class FirebaseService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static bool _isInitialized = false;
   static const String _userId = 'swypshyt_user';
+  static bool _hasLoggedStatus = false; // PREVENT SPAM LOGS
 
   // Initialize Firebase
   static Future<bool> initialize() async {
@@ -20,6 +21,13 @@ class FirebaseService {
         );
       }
       _isInitialized = true;
+
+      // LOG ONLY ONCE
+      if (!_hasLoggedStatus && kDebugMode) {
+        print('🔥 Firebase initialized successfully');
+        _hasLoggedStatus = true;
+      }
+
       return await _testConnection();
     } catch (e) {
       if (kDebugMode) print('Firebase init error: $e');
@@ -42,7 +50,6 @@ class FirebaseService {
       if (!_isInitialized) {
         final initialized = await initialize();
         if (!initialized) {
-          if (kDebugMode) print('🔥 Firebase initialization failed');
           return "Init Failed ❌";
         }
       }
@@ -50,7 +57,12 @@ class FirebaseService {
       // Simple connection test
       await _firestore.collection('users').doc('_test').get();
 
-      if (kDebugMode) print('🔥 Firebase connection successful');
+      // LOG ONLY ONCE OR IN DEBUG
+      if (!_hasLoggedStatus && kDebugMode) {
+        print('🔥 Firebase connection successful');
+        _hasLoggedStatus = true;
+      }
+
       return "Online ✅";
     } catch (e) {
       if (kDebugMode) print('🔥 Firebase connection error: $e');
@@ -66,16 +78,16 @@ class FirebaseService {
     }
   }
 
-  // Force connection on app start
+  // Force connection on app start - NO SPAM
   static Future<void> forceConnection() async {
-    if (kDebugMode) print('🔥 Forcing Firebase connection...');
+    if (_hasLoggedStatus) return; // Already logged
 
     try {
       await initialize();
       await getFirebaseStatus();
-      if (kDebugMode) print('🔥 Force connection complete');
+      if (kDebugMode) print('🔥 Firebase ready');
     } catch (e) {
-      if (kDebugMode) print('🔥 Force connection failed: $e');
+      if (kDebugMode) print('🔥 Firebase failed: $e');
     }
   }
 

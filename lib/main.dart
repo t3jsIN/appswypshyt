@@ -1,4 +1,4 @@
-// ignore_for_file: deprecated_member_use, unnecessary_to_list_in_spreads, library_private_types_in_public_api, unused_local_variable
+// ignore_for_file: deprecated_member_use, unnecessary_to_list_in_spreads, library_private_types_in_public_api
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/cupertino.dart';
@@ -18,12 +18,18 @@ import 'package:flutter/foundation.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize iOS keyboard fix for web
+  // SAFE iOS keyboard fix for web - NO RECURSION
   if (kIsWeb) {
-    IOSKeyboardFix.initialize();
+    try {
+      IOSKeyboardFix.initialize();
+      print('✅ iOS keyboard fix initialized safely');
+    } catch (e) {
+      print('❌ iOS keyboard fix failed: $e');
+      // Continue anyway - don't crash the app
+    }
   }
 
-  // Initialize Firebase
+  // SAFE Firebase initialization
   if (kIsWeb) {
     try {
       await Firebase.initializeApp(
@@ -32,17 +38,22 @@ void main() async {
       print('🔥 Firebase initialized successfully');
     } catch (e) {
       print('🔥 Firebase init failed: $e');
+      // Continue anyway - app will work locally
     }
   }
 
   // iOS Status Bar Configuration
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarBrightness: Brightness.light,
-      statusBarIconBrightness: Brightness.light,
-      statusBarColor: Colors.transparent,
-    ),
-  );
+  try {
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarBrightness: Brightness.light,
+        statusBarIconBrightness: Brightness.light,
+        statusBarColor: Colors.transparent,
+      ),
+    );
+  } catch (e) {
+    print('Status bar config failed: $e');
+  }
 
   runApp(const SypshytApp());
 }
@@ -72,6 +83,9 @@ class SypshytApp extends StatelessWidget {
 
 enum MoneyType { spent, received }
 
+// Add this to your main.dart - Custom Category System
+
+// 1. FIRST - Add this to your Category enum (find the existing one and replace it)
 enum Category {
   food,
   shopping,
@@ -81,7 +95,471 @@ enum Category {
   girlfriend,
   mom,
   gigs,
-  misc
+  misc,
+  // Custom categories will be handled separately
+}
+
+// 2. NEW - Custom Category Class
+class CustomCategory {
+  final String id;
+  final String name;
+  final List<String> keywords;
+  final Color color;
+  final IconData icon;
+  final DateTime createdAt;
+
+  CustomCategory({
+    required this.id,
+    required this.name,
+    required this.keywords,
+    required this.color,
+    required this.icon,
+    required this.createdAt,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'keywords': keywords,
+      'color': color.value,
+      'icon': icon.codePoint,
+      'createdAt': createdAt.toIso8601String(),
+    };
+  }
+
+  factory CustomCategory.fromJson(Map<String, dynamic> json) {
+    return CustomCategory(
+      id: json['id'],
+      name: json['name'],
+      keywords: List<String>.from(json['keywords']),
+      color: Color(json['color']),
+      icon: IconData(json['icon'], fontFamily: 'MaterialIcons'),
+      createdAt: DateTime.parse(json['createdAt']),
+    );
+  }
+}
+
+// 3. NEW - Custom Category Manager
+class CustomCategoryManager {
+  static List<CustomCategory> _customCategories = [];
+
+  static List<CustomCategory> get customCategories => _customCategories;
+
+  // Available colors for new categories
+  static const List<Color> availableColors = [
+    Color(0xFF8E44AD), // Purple
+    Color(0xFFE67E22), // Orange
+    Color(0xFF1ABC9C), // Turquoise
+    Color(0xFFE74C3C), // Red
+    Color(0xFF3498DB), // Blue
+    Color(0xFF2ECC71), // Green
+    Color(0xFFF39C12), // Yellow
+    Color(0xFF9B59B6), // Violet
+    Color(0xFF16A085), // Dark Turquoise
+    Color(0xFFD35400), // Dark Orange
+  ];
+
+  // Available icons
+  static const List<IconData> availableIcons = [
+    Icons.person,
+    Icons.family_restroom,
+    Icons.local_bar,
+    Icons.sports_soccer,
+    Icons.pets,
+    Icons.car_rental,
+    Icons.school,
+    Icons.medical_services,
+    Icons.fitness_center,
+    Icons.videogame_asset,
+    Icons.travel_explore,
+    Icons.home_repair_service,
+    Icons.spa,
+    Icons.theater_comedy,
+  ];
+
+  static Future<void> loadCustomCategories() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? categoriesData = prefs.getString('custom_categories');
+
+    if (categoriesData != null) {
+      List<dynamic> categoriesJson = json.decode(categoriesData);
+      _customCategories =
+          categoriesJson.map((e) => CustomCategory.fromJson(e)).toList();
+    }
+  }
+
+  static Future<void> saveCustomCategories() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String categoriesJson =
+        json.encode(_customCategories.map((e) => e.toJson()).toList());
+    await prefs.setString('custom_categories', categoriesJson);
+  }
+
+  static void addCategory(CustomCategory category) {
+    _customCategories.add(category);
+    saveCustomCategories();
+  }
+
+  static void removeCategory(String id) {
+    _customCategories.removeWhere((cat) => cat.id == id);
+    saveCustomCategories();
+  }
+
+  // Enhanced classification that includes custom categories
+  static String classifyTransaction(String description, MoneyType type) {
+    String lower = description.toLowerCase();
+
+    // First check custom categories
+    for (final customCat in _customCategories) {
+      for (final keyword in customCat.keywords) {
+        if (lower.contains(keyword.toLowerCase())) {
+          return customCat.id; // Return custom category ID
+        }
+      }
+    }
+
+    // Fall back to original classification
+    Category originalCategory =
+        TransactionClassifier.classify(description: description, type: type);
+    return originalCategory.toString().split('.').last;
+  }
+
+  static Color getCategoryColor(String categoryId) {
+    // Check if it's a custom category
+    for (final customCat in _customCategories) {
+      if (customCat.id == categoryId) {
+        return customCat.color;
+      }
+    }
+
+    // Fall back to original category colors
+    try {
+      Category category = Category.values
+          .firstWhere((e) => e.toString().split('.').last == categoryId);
+      return TransactionClassifier.getCategoryColor(category);
+    } catch (e) {
+      return const Color(0xFF8E8E93); // Default gray
+    }
+  }
+
+  static IconData getCategoryIcon(String categoryId) {
+    // Check if it's a custom category
+    for (final customCat in _customCategories) {
+      if (customCat.id == categoryId) {
+        return customCat.icon;
+      }
+    }
+
+    // Fall back to original category icons
+    try {
+      Category category = Category.values
+          .firstWhere((e) => e.toString().split('.').last == categoryId);
+
+      switch (category) {
+        case Category.food:
+          return Icons.restaurant;
+        case Category.shopping:
+          return Icons.shopping_bag;
+        case Category.groceries:
+          return Icons.local_grocery_store;
+        case Category.clothes:
+          return Icons.checkroom;
+        case Category.orders:
+          return Icons.local_shipping;
+        case Category.girlfriend:
+          return Icons.favorite;
+        case Category.mom:
+          return Icons.family_restroom;
+        case Category.gigs:
+          return Icons.music_note;
+        case Category.misc:
+          return Icons.category;
+      }
+    } catch (e) {
+      return Icons.category; // Default icon
+    }
+  }
+
+  static String getCategoryName(String categoryId) {
+    // Check if it's a custom category
+    for (final customCat in _customCategories) {
+      if (customCat.id == categoryId) {
+        return customCat.name;
+      }
+    }
+
+    // Fall back to original category names
+    try {
+      Category category = Category.values
+          .firstWhere((e) => e.toString().split('.').last == categoryId);
+      return TransactionClassifier.getCategoryName(category);
+    } catch (e) {
+      return 'Unknown';
+    }
+  }
+}
+
+// 4. NEW - Add Category Dialog Widget
+class AddCategoryDialog extends StatefulWidget {
+  const AddCategoryDialog({Key? key}) : super(key: key);
+
+  @override
+  State<AddCategoryDialog> createState() => _AddCategoryDialogState();
+}
+
+class _AddCategoryDialogState extends State<AddCategoryDialog> {
+  final TextEditingController nameController = TextEditingController();
+  final TextEditingController keywordController = TextEditingController();
+  List<String> keywords = [];
+  Color selectedColor = CustomCategoryManager.availableColors[0];
+  IconData selectedIcon = CustomCategoryManager.availableIcons[0];
+
+  void _addKeyword() {
+    String keyword = keywordController.text.trim();
+    if (keyword.isNotEmpty && keywords.length < 10) {
+      // Limit words to 3
+      List<String> words = keyword.split(' ');
+      if (words.length <= 3) {
+        setState(() {
+          keywords.add(keyword.toLowerCase());
+          keywordController.clear();
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Keywords limited to 3 words max')));
+      }
+    }
+  }
+
+  void _removeKeyword(int index) {
+    setState(() {
+      keywords.removeAt(index);
+    });
+  }
+
+  void _createCategory() {
+    if (nameController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please enter a category name')));
+      return;
+    }
+
+    if (keywords.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please add at least one keyword')));
+      return;
+    }
+
+    CustomCategory newCategory = CustomCategory(
+      id: 'custom_${DateTime.now().millisecondsSinceEpoch}',
+      name: nameController.text.trim(),
+      keywords: keywords,
+      color: selectedColor,
+      icon: selectedIcon,
+      createdAt: DateTime.now(),
+    );
+
+    CustomCategoryManager.addCategory(newCategory);
+    Navigator.pop(context, true); // Return success
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: const Color(0xFF1C1C1E),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: const Text(
+        'Add Custom Category',
+        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+      ),
+      content: SizedBox(
+        width: 300,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Category Name
+            TextField(
+              controller: nameController,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: 'Category Name',
+                labelStyle: const TextStyle(color: Color(0xFF8E8E93)),
+                hintText: 'e.g., Dad, Alcohol, Gaming',
+                hintStyle: const TextStyle(color: Color(0xFF8E8E93)),
+                filled: true,
+                fillColor: const Color(0xFF2C2C2E),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Keywords Section
+            TextField(
+              controller: keywordController,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: 'Add Keywords',
+                labelStyle: const TextStyle(color: Color(0xFF8E8E93)),
+                hintText: 'dad, father, pop (3 words max)',
+                hintStyle: const TextStyle(color: Color(0xFF8E8E93)),
+                filled: true,
+                fillColor: const Color(0xFF2C2C2E),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                suffixIcon: IconButton(
+                  onPressed: _addKeyword,
+                  icon: const Icon(Icons.add, color: Color(0xFF007AFF)),
+                ),
+              ),
+              onSubmitted: (_) => _addKeyword(),
+            ),
+            const SizedBox(height: 8),
+
+            // Keywords Display
+            if (keywords.isNotEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2C2C2E),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: keywords.asMap().entries.map((entry) {
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: selectedColor.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: selectedColor),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            entry.value,
+                            style:
+                                TextStyle(color: selectedColor, fontSize: 12),
+                          ),
+                          const SizedBox(width: 4),
+                          GestureDetector(
+                            onTap: () => _removeKeyword(entry.key),
+                            child: Icon(
+                              Icons.close,
+                              size: 14,
+                              color: selectedColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            const SizedBox(height: 16),
+
+            // Color Selection
+            const Text('Choose Color:', style: TextStyle(color: Colors.white)),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 40,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: CustomCategoryManager.availableColors.length,
+                itemBuilder: (context, index) {
+                  Color color = CustomCategoryManager.availableColors[index];
+                  bool isSelected = color == selectedColor;
+                  return GestureDetector(
+                    onTap: () => setState(() => selectedColor = color),
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      margin: const EdgeInsets.only(right: 8),
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                        border: isSelected
+                            ? Border.all(color: Colors.white, width: 3)
+                            : null,
+                      ),
+                      child: isSelected
+                          ? const Icon(Icons.check,
+                              color: Colors.white, size: 20)
+                          : null,
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Icon Selection
+            const Text('Choose Icon:', style: TextStyle(color: Colors.white)),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 40,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: CustomCategoryManager.availableIcons.length,
+                itemBuilder: (context, index) {
+                  IconData icon = CustomCategoryManager.availableIcons[index];
+                  bool isSelected = icon == selectedIcon;
+                  return GestureDetector(
+                    onTap: () => setState(() => selectedIcon = icon),
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      margin: const EdgeInsets.only(right: 8),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? selectedColor
+                            : const Color(0xFF2C2C2E),
+                        borderRadius: BorderRadius.circular(8),
+                        border: isSelected
+                            ? Border.all(color: selectedColor, width: 2)
+                            : Border.all(color: const Color(0xFF8E8E93)),
+                      ),
+                      child: Icon(
+                        icon,
+                        color:
+                            isSelected ? Colors.white : const Color(0xFF8E8E93),
+                        size: 20,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child:
+              const Text('Cancel', style: TextStyle(color: Color(0xFF8E8E93))),
+        ),
+        ElevatedButton(
+          onPressed: _createCategory,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: selectedColor,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          child: const Text('Create', style: TextStyle(color: Colors.white)),
+        ),
+      ],
+    );
+  }
 }
 
 class BudgetManager {
@@ -263,7 +741,7 @@ class ExpenseEntry {
   final String name;
   final bool recoverable;
   final DateTime timestamp;
-  final Category category;
+  final String category; // CHANGED: Now String instead of Category enum
 
   ExpenseEntry({
     required this.id,
@@ -271,12 +749,9 @@ class ExpenseEntry {
     required this.name,
     required this.recoverable,
     required this.timestamp,
-    Category? category,
+    String? category,
   }) : category = category ??
-            TransactionClassifier.classify(
-              description: name,
-              type: MoneyType.spent,
-            );
+            CustomCategoryManager.classifyTransaction(name, MoneyType.spent);
 
   Map<String, dynamic> toJson() {
     return {
@@ -285,31 +760,18 @@ class ExpenseEntry {
       'name': name,
       'recoverable': recoverable,
       'timestamp': timestamp.toIso8601String(),
-      'category': category.toString().split('.').last,
+      'category': category, // Now directly stores the category ID/name
     };
   }
 
   factory ExpenseEntry.fromJson(Map<String, dynamic> json) {
-    Category cat = Category.misc;
-    try {
-      cat = Category.values.firstWhere(
-        (e) => e.toString().split('.').last == json['category'],
-        orElse: () => Category.misc,
-      );
-    } catch (e) {
-      cat = TransactionClassifier.classify(
-        description: json['name'] ?? '',
-        type: MoneyType.spent,
-      );
-    }
-
     return ExpenseEntry(
       id: json['id'],
       amount: json['amount'].toDouble(),
       name: json['name'],
       recoverable: json['recoverable'],
       timestamp: DateTime.parse(json['timestamp']),
-      category: cat,
+      category: json['category'] ?? 'misc', // Fallback to 'misc' if null
     );
   }
 }
@@ -320,7 +782,7 @@ class IncomeEntry {
   final String name;
   final bool allMine;
   final DateTime timestamp;
-  final Category category;
+  final String category; // CHANGED: Now String instead of Category enum
 
   IncomeEntry({
     required this.id,
@@ -328,12 +790,9 @@ class IncomeEntry {
     required this.name,
     required this.allMine,
     required this.timestamp,
-    Category? category,
+    String? category,
   }) : category = category ??
-            TransactionClassifier.classify(
-              description: name,
-              type: MoneyType.received,
-            );
+            CustomCategoryManager.classifyTransaction(name, MoneyType.received);
 
   Map<String, dynamic> toJson() {
     return {
@@ -342,31 +801,18 @@ class IncomeEntry {
       'name': name,
       'allMine': allMine,
       'timestamp': timestamp.toIso8601String(),
-      'category': category.toString().split('.').last,
+      'category': category, // Now directly stores the category ID/name
     };
   }
 
   factory IncomeEntry.fromJson(Map<String, dynamic> json) {
-    Category cat = Category.misc;
-    try {
-      cat = Category.values.firstWhere(
-        (e) => e.toString().split('.').last == json['category'],
-        orElse: () => Category.misc,
-      );
-    } catch (e) {
-      cat = TransactionClassifier.classify(
-        description: json['name'] ?? '',
-        type: MoneyType.received,
-      );
-    }
-
     return IncomeEntry(
       id: json['id'],
       amount: json['amount'].toDouble(),
       name: json['name'],
       allMine: json['allMine'],
       timestamp: DateTime.parse(json['timestamp']),
-      category: cat,
+      category: json['category'] ?? 'misc', // Fallback to 'misc' if null
     );
   }
 }
@@ -751,25 +1197,22 @@ class _SypshytHomePageState extends State<SypshytHomePage>
             mainAxisSize: MainAxisSize.min,
             children: [
               const SizedBox(height: 16),
-              IOSFixedTextField(
+              CupertinoTextField(
                 controller: editAmountController,
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
                 style: TextStyle(color: textColor, fontFamily: 'SFProDisplay'),
-                decoration: const InputDecoration(
-                  hintText: 'Amount',
-                  prefixText: '₹ ',
-                  border: OutlineInputBorder(),
+                placeholder: 'Amount',
+                prefix: const Padding(
+                  padding: EdgeInsets.only(left: 8),
+                  child: Text('₹ '),
                 ),
               ),
               const SizedBox(height: 12),
-              IOSFixedTextField(
+              CupertinoTextField(
                 controller: editNameController,
                 style: TextStyle(color: textColor, fontFamily: 'SFProDisplay'),
-                decoration: const InputDecoration(
-                  hintText: 'Description',
-                  border: OutlineInputBorder(),
-                ),
+                placeholder: 'Description',
               ),
             ],
           ),
@@ -842,6 +1285,9 @@ class _SypshytHomePageState extends State<SypshytHomePage>
     setState(() => isLoading = true);
 
     try {
+      // LOAD CUSTOM CATEGORIES FIRST - THIS IS THE KEY ADDITION!
+      await CustomCategoryManager.loadCustomCategories();
+
       // Try Firebase first
       try {
         await FirebaseService.initialize();
@@ -963,7 +1409,8 @@ class _SypshytHomePageState extends State<SypshytHomePage>
   }
 
   Future<void> _checkAndResetData() async {
-    // Keep all data - no deletion
+    // DO NOTHING - Keep all data forever
+    // Users can filter by date in LogBook if needed
     SharedPreferences prefs = await SharedPreferences.getInstance();
     String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
     await prefs.setString('last_reset_date', today);
@@ -1701,7 +2148,7 @@ class _SypshytHomePageState extends State<SypshytHomePage>
     notifications.clear();
 
     var foodSpent = spentEntries
-        .where((e) => e.category == Category.food)
+        .where((e) => e.category == 'food')
         .fold(0.0, (sum, entry) => sum + entry.amount);
     if (foodSpent > 4000) {
       notifications.add({
@@ -2229,46 +2676,14 @@ class _SypshytHomePageState extends State<SypshytHomePage>
     required TextEditingController controller,
     required VoidCallback onSubmitted,
   }) {
-    return IOSFixedTextField(
+    return NumbersOnlyInput(
       controller: controller,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      onSubmitted: (_) => onSubmitted(),
-      style: TextStyle(
-        color: textColor,
-        fontSize: 16,
-        fontWeight: FontWeight.w600,
-        fontFamily: 'SFProDisplay',
-      ),
-      decoration: InputDecoration(
-        fillColor: inputFieldColor,
-        filled: true,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: borderColor),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: borderColor),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: borderColor),
-        ),
-        contentPadding: const EdgeInsets.all(16),
-        prefixText: '₹ ',
-        prefixStyle: TextStyle(
-          color: textColor,
-          fontSize: 16,
-          fontWeight: FontWeight.w600,
-          fontFamily: 'SFProDisplay',
-        ),
-        hintText: 'Amount (₹)',
-        hintStyle: TextStyle(
-          color: hintTextColor.withOpacity(0.5),
-          fontSize: 16,
-          fontFamily: 'SFProDisplay',
-        ),
-      ),
+      placeholder: 'Amount (₹)',
+      textColor: textColor,
+      inputFieldColor: inputFieldColor,
+      borderColor: borderColor,
+      hintTextColor: hintTextColor,
+      onSubmitted: onSubmitted,
     );
   }
 
@@ -2277,7 +2692,7 @@ class _SypshytHomePageState extends State<SypshytHomePage>
     required String hintText,
     required VoidCallback onSubmitted,
   }) {
-    return IOSFixedTextField(
+    return CupertinoTextField(
       controller: controller,
       textCapitalization: TextCapitalization.sentences,
       onSubmitted: (_) => onSubmitted(),
@@ -2287,28 +2702,17 @@ class _SypshytHomePageState extends State<SypshytHomePage>
         fontWeight: FontWeight.w500,
         fontFamily: 'SFProDisplay',
       ),
-      decoration: InputDecoration(
-        fillColor: inputFieldColor,
-        filled: true,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: borderColor),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: borderColor),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: borderColor),
-        ),
-        contentPadding: const EdgeInsets.all(16),
-        hintText: hintText,
-        hintStyle: TextStyle(
-          color: hintTextColor.withOpacity(0.5),
-          fontSize: 16,
-          fontFamily: 'SFProDisplay',
-        ),
+      decoration: BoxDecoration(
+        color: inputFieldColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderColor),
+      ),
+      padding: const EdgeInsets.all(16),
+      placeholder: hintText,
+      placeholderStyle: TextStyle(
+        color: hintTextColor.withOpacity(0.5),
+        fontSize: 16,
+        fontFamily: 'SFProDisplay',
       ),
     );
   }
@@ -2715,10 +3119,13 @@ class _SypshytHomePageState extends State<SypshytHomePage>
     );
   }
 
+// REPLACE your _buildCategoryPeriodView method with this:
+
   Widget _buildCategoryPeriodView(String period) {
     var data = _getCategoryDataForPeriod(period);
-    Map<Category, double> expenseCategories = data['expenses'];
-    Map<Category, double> incomeCategories = data['income'];
+    Map<String, double> expenseCategories =
+        data['expenses']; // FIXED: String keys
+    Map<String, double> incomeCategories = data['income']; // FIXED: String keys
     double totalSpentAmount = data['totalSpent'];
     double totalIncomeAmount = data['totalIncome'];
 
@@ -2748,11 +3155,11 @@ class _SypshytHomePageState extends State<SypshytHomePage>
       );
     }
 
-    List<MapEntry<Category, double>> sortedExpenses = expenseCategories.entries
+    List<MapEntry<String, double>> sortedExpenses = expenseCategories.entries
         .toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
-    List<MapEntry<Category, double>> sortedIncome = incomeCategories.entries
+    List<MapEntry<String, double>> sortedIncome = incomeCategories.entries
         .toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
@@ -2792,8 +3199,8 @@ class _SypshytHomePageState extends State<SypshytHomePage>
                     flex: (percentage * 100).round(),
                     child: Container(
                       decoration: BoxDecoration(
-                        color:
-                            TransactionClassifier.getCategoryColor(entry.key),
+                        color: CustomCategoryManager.getCategoryColor(
+                            entry.key), // FIXED: Use CustomCategoryManager
                         borderRadius: BorderRadius.circular(3),
                       ),
                     ),
@@ -2812,15 +3219,16 @@ class _SypshytHomePageState extends State<SypshytHomePage>
                       width: 8,
                       height: 8,
                       decoration: BoxDecoration(
-                        color:
-                            TransactionClassifier.getCategoryColor(entry.key),
+                        color: CustomCategoryManager.getCategoryColor(
+                            entry.key), // FIXED: Use CustomCategoryManager
                         shape: BoxShape.circle,
                       ),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        TransactionClassifier.getCategoryName(entry.key),
+                        CustomCategoryManager.getCategoryName(
+                            entry.key), // FIXED: Use CustomCategoryManager
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
@@ -2844,26 +3252,13 @@ class _SypshytHomePageState extends State<SypshytHomePage>
                       children: [
                         Text(
                           _formatCurrency(entry.value),
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
-                            color: BudgetManager.isOverBudget(
-                                    entry.key, entry.value)
-                                ? const Color(0xFFFF3B30)
-                                : const Color(0xFFFF3B30),
+                            color: Color(0xFFFF3B30),
                             fontFamily: 'SFProDisplay',
                           ),
                         ),
-                        if (BudgetManager.isOverBudget(entry.key, entry.value))
-                          const Text(
-                            'OVER BUDGET!',
-                            style: TextStyle(
-                              fontSize: 8,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFFFF3B30),
-                              fontFamily: 'SFProDisplay',
-                            ),
-                          ),
                       ],
                     ),
                   ],
@@ -2903,8 +3298,8 @@ class _SypshytHomePageState extends State<SypshytHomePage>
                     flex: (percentage * 100).round(),
                     child: Container(
                       decoration: BoxDecoration(
-                        color:
-                            TransactionClassifier.getCategoryColor(entry.key),
+                        color: CustomCategoryManager.getCategoryColor(
+                            entry.key), // FIXED: Use CustomCategoryManager
                         borderRadius: BorderRadius.circular(3),
                       ),
                     ),
@@ -2923,15 +3318,16 @@ class _SypshytHomePageState extends State<SypshytHomePage>
                       width: 8,
                       height: 8,
                       decoration: BoxDecoration(
-                        color:
-                            TransactionClassifier.getCategoryColor(entry.key),
+                        color: CustomCategoryManager.getCategoryColor(
+                            entry.key), // FIXED: Use CustomCategoryManager
                         shape: BoxShape.circle,
                       ),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        TransactionClassifier.getCategoryName(entry.key),
+                        CustomCategoryManager.getCategoryName(
+                            entry.key), // FIXED: Use CustomCategoryManager
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
@@ -2978,11 +3374,12 @@ class _SypshytHomePageState extends State<SypshytHomePage>
       return _cachedCategoryData!;
     }
 
-    Map<Category, double> expenseCategories = {};
-    Map<Category, double> incomeCategories = {};
+    Map<String, double> expenseCategories = {}; // FIXED: String keys
+    Map<String, double> incomeCategories = {}; // FIXED: String keys
     double totalSpentAmount = 0;
     double totalIncomeAmount = 0;
 
+    // FIXED: Define startDate and endDate properly
     DateTime startDate, endDate;
 
     switch (period) {
@@ -3009,6 +3406,7 @@ class _SypshytHomePageState extends State<SypshytHomePage>
         .toList();
 
     for (ExpenseEntry entry in periodExpenses) {
+      // FIXED: entry.category is now a String
       expenseCategories[entry.category] =
           (expenseCategories[entry.category] ?? 0) + entry.amount;
       totalSpentAmount += entry.amount;
@@ -3020,6 +3418,7 @@ class _SypshytHomePageState extends State<SypshytHomePage>
         .toList();
 
     for (IncomeEntry entry in periodIncome) {
+      // FIXED: entry.category is now a String
       incomeCategories[entry.category] =
           (incomeCategories[entry.category] ?? 0) + entry.amount;
       totalIncomeAmount += entry.amount;
@@ -3144,7 +3543,7 @@ class _SypshytHomePageState extends State<SypshytHomePage>
     }
 
     var foodSpent = spentEntries
-        .where((e) => e.category == Category.food)
+        .where((e) => e.category == 'food') // ✅ FIXED
         .fold(0.0, (sum, entry) => sum + entry.amount);
     if (foodSpent > 5000) {
       suggestions.add(
@@ -3152,10 +3551,10 @@ class _SypshytHomePageState extends State<SypshytHomePage>
     }
 
     var gfSpent = spentEntries
-        .where((e) => e.category == Category.girlfriend)
+        .where((e) => e.category == 'girlfriend') // ✅ FIXED
         .fold(0.0, (sum, entry) => sum + entry.amount);
     var gfEarned = gotEntries
-        .where((e) => e.category == Category.girlfriend)
+        .where((e) => e.category == 'girlfriend') // ✅ FIXED
         .fold(0.0, (sum, entry) => sum + entry.amount);
     if (gfSpent > gfEarned && gfSpent > 2000) {
       suggestions.add(
@@ -3163,10 +3562,10 @@ class _SypshytHomePageState extends State<SypshytHomePage>
     }
 
     var momSpent = spentEntries
-        .where((e) => e.category == Category.mom)
+        .where((e) => e.category == 'mom') // ✅ FIXED
         .fold(0.0, (sum, entry) => sum + entry.amount);
     var momEarned = gotEntries
-        .where((e) => e.category == Category.mom)
+        .where((e) => e.category == 'mom') // ✅ FIXED
         .fold(0.0, (sum, entry) => sum + entry.amount);
     if (momEarned > momSpent && momEarned > 1000) {
       suggestions.add(
@@ -3635,39 +4034,11 @@ class _SypshytHomePageState extends State<SypshytHomePage>
     );
   }
 
-  Widget getCategoryIcon(Category category, {double size = 16, Color? color}) {
-    IconData iconData;
-    Color iconColor = color ?? TransactionClassifier.getCategoryColor(category);
-
-    switch (category) {
-      case Category.food:
-        iconData = Icons.restaurant;
-        break;
-      case Category.shopping:
-        iconData = Icons.shopping_bag;
-        break;
-      case Category.groceries:
-        iconData = Icons.local_grocery_store;
-        break;
-      case Category.clothes:
-        iconData = Icons.checkroom;
-        break;
-      case Category.orders:
-        iconData = Icons.local_shipping;
-        break;
-      case Category.girlfriend:
-        iconData = Icons.favorite;
-        break;
-      case Category.mom:
-        iconData = Icons.family_restroom;
-        break;
-      case Category.gigs:
-        iconData = Icons.music_note;
-        break;
-      case Category.misc:
-        iconData = Icons.category;
-        break;
-    }
+  Widget getCategoryIcon(String categoryId, {double size = 16, Color? color}) {
+    // Use the CustomCategoryManager to get the icon
+    IconData iconData = CustomCategoryManager.getCategoryIcon(categoryId);
+    Color iconColor =
+        color ?? CustomCategoryManager.getCategoryColor(categoryId);
 
     return Icon(iconData, size: size, color: iconColor);
   }
@@ -4194,7 +4565,7 @@ class _SypshytHomePageState extends State<SypshytHomePage>
           name: '${entry.name} - ${entry.eventTitle}',
           allMine: true,
           timestamp: DateTime.now(),
-          category: Category.gigs,
+          category: 'gigs',
         );
         gotEntries.insert(0, incomeEntry);
       }
@@ -4363,65 +4734,65 @@ class _SypshytHomePageState extends State<SypshytHomePage>
                             ),
                           ),
                           const SizedBox(height: 15),
-                          IOSFixedTextField(
+                          CupertinoTextField(
                             controller: payTrackAmountController,
                             keyboardType: TextInputType.number,
                             style: TextStyle(
                                 color: textColor, fontFamily: 'SFProDisplay'),
-                            decoration: InputDecoration(
-                              fillColor: inputFieldColor,
-                              filled: true,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: borderColor),
-                              ),
-                              contentPadding: const EdgeInsets.all(16),
-                              prefixIcon: const Icon(Icons.currency_rupee,
-                                  color: Color(0xFF32D74B)),
-                              hintText: 'Payment Amount (₹)',
-                              hintStyle: TextStyle(
-                                  color: hintTextColor.withOpacity(0.5)),
+                            decoration: BoxDecoration(
+                              color: inputFieldColor,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: borderColor),
                             ),
+                            padding: const EdgeInsets.all(16),
+                            prefix: const Padding(
+                              padding: EdgeInsets.only(left: 16),
+                              child: Icon(Icons.currency_rupee,
+                                  color: Color(0xFF32D74B)),
+                            ),
+                            placeholder: 'Payment Amount (₹)',
+                            placeholderStyle: TextStyle(
+                                color: hintTextColor.withOpacity(0.5)),
                           ),
                           const SizedBox(height: 15),
-                          IOSFixedTextField(
+                          CupertinoTextField(
                             controller: payTrackNameController,
                             style: TextStyle(
                                 color: textColor, fontFamily: 'SFProDisplay'),
-                            decoration: InputDecoration(
-                              fillColor: inputFieldColor,
-                              filled: true,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: borderColor),
-                              ),
-                              contentPadding: const EdgeInsets.all(16),
-                              prefixIcon: const Icon(Icons.music_note,
-                                  color: Color(0xFF32D74B)),
-                              hintText: 'Gig Name (e.g., "DJ Set")',
-                              hintStyle: TextStyle(
-                                  color: hintTextColor.withOpacity(0.5)),
+                            decoration: BoxDecoration(
+                              color: inputFieldColor,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: borderColor),
                             ),
+                            padding: const EdgeInsets.all(16),
+                            prefix: const Padding(
+                              padding: EdgeInsets.only(left: 16),
+                              child: Icon(Icons.music_note,
+                                  color: Color(0xFF32D74B)),
+                            ),
+                            placeholder: 'Gig Name (e.g., "DJ Set")',
+                            placeholderStyle: TextStyle(
+                                color: hintTextColor.withOpacity(0.5)),
                           ),
                           const SizedBox(height: 15),
-                          IOSFixedTextField(
+                          CupertinoTextField(
                             controller: payTrackEventTitleController,
                             style: TextStyle(
                                 color: textColor, fontFamily: 'SFProDisplay'),
-                            decoration: InputDecoration(
-                              fillColor: inputFieldColor,
-                              filled: true,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: borderColor),
-                              ),
-                              contentPadding: const EdgeInsets.all(16),
-                              prefixIcon: const Icon(Icons.event,
-                                  color: Color(0xFF32D74B)),
-                              hintText: 'Event/Venue',
-                              hintStyle: TextStyle(
-                                  color: hintTextColor.withOpacity(0.5)),
+                            decoration: BoxDecoration(
+                              color: inputFieldColor,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: borderColor),
                             ),
+                            padding: const EdgeInsets.all(16),
+                            prefix: const Padding(
+                              padding: EdgeInsets.only(left: 16),
+                              child:
+                                  Icon(Icons.event, color: Color(0xFF32D74B)),
+                            ),
+                            placeholder: 'Event/Venue',
+                            placeholderStyle: TextStyle(
+                                color: hintTextColor.withOpacity(0.5)),
                           ),
                           const SizedBox(height: 15),
                           Container(
@@ -4652,6 +5023,8 @@ class _SypshytHomePageState extends State<SypshytHomePage>
     );
   }
 
+// REPLACE your _showLogBookDialog method with this enhanced version
+
   void _showLogBookDialog() {
     showModalBottomSheet(
       context: context,
@@ -4663,6 +5036,14 @@ class _SypshytHomePageState extends State<SypshytHomePage>
         return StatefulBuilder(
           builder: (context, setDialogState) {
             List<dynamic> filteredEntries = _getFilteredLogData();
+
+            // Get all available categories (original + custom)
+            List<String> allCategories = ['All'];
+            allCategories.addAll(Category.values
+                .map((e) => TransactionClassifier.getCategoryName(e)));
+            allCategories.addAll(
+                CustomCategoryManager.customCategories.map((e) => e.name));
+
             return Container(
               width: double.infinity,
               height: MediaQuery.of(context).size.height * 0.8,
@@ -4697,9 +5078,22 @@ class _SypshytHomePageState extends State<SypshytHomePage>
                             fontFamily: 'SFProDisplay',
                           ),
                         ),
-                        IconButton(
-                          onPressed: () => Navigator.pop(context),
-                          icon: const Icon(Icons.close, color: Colors.white),
+                        Row(
+                          children: [
+                            // NEW: Manage Categories Button
+                            IconButton(
+                              onPressed: () =>
+                                  _showManageCategoriesDialog(setDialogState),
+                              icon: const Icon(Icons.settings,
+                                  color: Colors.white, size: 20),
+                              tooltip: 'Manage Categories',
+                            ),
+                            IconButton(
+                              onPressed: () => Navigator.pop(context),
+                              icon:
+                                  const Icon(Icons.close, color: Colors.white),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -4708,24 +5102,22 @@ class _SypshytHomePageState extends State<SypshytHomePage>
                     padding: const EdgeInsets.all(20),
                     child: Column(
                       children: [
-                        IOSFixedTextField(
+                        CupertinoTextField(
                           style: TextStyle(
                               color: textColor, fontFamily: 'SFProDisplay'),
-                          decoration: InputDecoration(
-                            fillColor: inputFieldColor,
-                            filled: true,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: borderColor),
-                            ),
-                            contentPadding: const EdgeInsets.all(16),
-                            prefixIcon:
-                                Icon(Icons.search, color: subtitleColor),
-                            hintText: 'Search transactions...',
-                            hintStyle: TextStyle(
-                                color: subtitleColor,
-                                fontFamily: 'SFProDisplay'),
+                          decoration: BoxDecoration(
+                            color: inputFieldColor,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: borderColor),
                           ),
+                          padding: const EdgeInsets.all(16),
+                          prefix: Padding(
+                            padding: const EdgeInsets.only(left: 16),
+                            child: Icon(Icons.search, color: subtitleColor),
+                          ),
+                          placeholder: 'Search transactions...',
+                          placeholderStyle: TextStyle(
+                              color: subtitleColor, fontFamily: 'SFProDisplay'),
                           onChanged: (value) {
                             setDialogState(() {
                               searchQuery = value;
@@ -4780,36 +5172,74 @@ class _SypshytHomePageState extends State<SypshytHomePage>
                                   borderRadius: BorderRadius.circular(12),
                                   border: Border.all(color: borderColor),
                                 ),
-                                child: DropdownButtonHideUnderline(
-                                  child: DropdownButton<String>(
-                                    value: selectedCategoryFilter,
-                                    dropdownColor: modalSurfaceColor,
-                                    style: TextStyle(
-                                        color: textColor,
-                                        fontFamily: 'SFProDisplay'),
-                                    items: [
-                                      'All',
-                                      'Food',
-                                      'Shopping',
-                                      'Mom',
-                                      'Girlfriend',
-                                      'Gigs',
-                                      'Misc'
-                                    ].map((String value) {
-                                      return DropdownMenuItem<String>(
-                                        value: value,
-                                        child: Text(value,
-                                            style: TextStyle(
-                                                color: textColor,
-                                                fontSize: 14)),
-                                      );
-                                    }).toList(),
-                                    onChanged: (String? newValue) {
-                                      setDialogState(() {
-                                        selectedCategoryFilter = newValue!;
-                                      });
-                                    },
-                                  ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: DropdownButtonHideUnderline(
+                                        child: DropdownButton<String>(
+                                          value: selectedCategoryFilter,
+                                          dropdownColor: modalSurfaceColor,
+                                          style: TextStyle(
+                                              color: textColor,
+                                              fontFamily: 'SFProDisplay'),
+                                          items:
+                                              allCategories.map((String value) {
+                                            return DropdownMenuItem<String>(
+                                              value: value,
+                                              child: Text(value,
+                                                  style: TextStyle(
+                                                      color: textColor,
+                                                      fontSize: 14)),
+                                            );
+                                          }).toList(),
+                                          onChanged: (String? newValue) {
+                                            setDialogState(() {
+                                              selectedCategoryFilter =
+                                                  newValue!;
+                                            });
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                    // NEW: + Button for adding categories
+                                    GestureDetector(
+                                      onTap: () async {
+                                        final result = await showDialog<bool>(
+                                          context: context,
+                                          builder: (context) =>
+                                              const AddCategoryDialog(),
+                                        );
+
+                                        if (result == true) {
+                                          setDialogState(() {
+                                            // Refresh the categories list
+                                          });
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                  '✅ Category added successfully!'),
+                                              backgroundColor:
+                                                  Color(0xFF34C759),
+                                            ),
+                                          );
+                                        }
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.all(4),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF007AFF),
+                                          borderRadius:
+                                              BorderRadius.circular(6),
+                                        ),
+                                        child: const Icon(
+                                          Icons.add,
+                                          color: Colors.white,
+                                          size: 16,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
@@ -4892,8 +5322,20 @@ class _SypshytHomePageState extends State<SypshytHomePage>
                                             size: 28,
                                           ),
                                           const SizedBox(width: 8),
-                                          getCategoryIcon(entry.category,
-                                              size: 18),
+                                          // Use enhanced category system
+                                          Icon(
+                                            CustomCategoryManager
+                                                .getCategoryIcon(entry.category
+                                                    .toString()
+                                                    .split('.')
+                                                    .last),
+                                            size: 18,
+                                            color: CustomCategoryManager
+                                                .getCategoryColor(entry.category
+                                                    .toString()
+                                                    .split('.')
+                                                    .last),
+                                          ),
                                         ],
                                       ),
                                       title: Text(
@@ -4903,11 +5345,49 @@ class _SypshytHomePageState extends State<SypshytHomePage>
                                             color: textColor,
                                             fontFamily: 'SFProDisplay'),
                                       ),
-                                      subtitle: Text(
-                                        _formatDate(entry.timestamp),
-                                        style: TextStyle(
-                                            color: subtitleColor,
-                                            fontFamily: 'SFProDisplay'),
+                                      subtitle: Row(
+                                        children: [
+                                          Text(
+                                            _formatDate(entry.timestamp),
+                                            style: TextStyle(
+                                                color: subtitleColor,
+                                                fontFamily: 'SFProDisplay'),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: CustomCategoryManager
+                                                      .getCategoryColor(entry
+                                                          .category
+                                                          .toString()
+                                                          .split('.')
+                                                          .last)
+                                                  .withOpacity(0.2),
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            child: Text(
+                                              CustomCategoryManager
+                                                  .getCategoryName(entry
+                                                      .category
+                                                      .toString()
+                                                      .split('.')
+                                                      .last),
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                color: CustomCategoryManager
+                                                    .getCategoryColor(entry
+                                                        .category
+                                                        .toString()
+                                                        .split('.')
+                                                        .last),
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                       trailing: Column(
                                         mainAxisAlignment:
@@ -4948,6 +5428,182 @@ class _SypshytHomePageState extends State<SypshytHomePage>
           },
         );
       },
+    );
+  }
+
+// NEW: Manage Categories Dialog
+  void _showManageCategoriesDialog(StateSetter parentSetState) {
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF1C1C1E),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text(
+            'Manage Categories',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+          ),
+          content: SizedBox(
+            width: 300,
+            height: 400,
+            child: Column(
+              children: [
+                // Add Category Button
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    final result = await showDialog<bool>(
+                      context: context,
+                      builder: (context) => const AddCategoryDialog(),
+                    );
+
+                    if (result == true) {
+                      setDialogState(() {});
+                      parentSetState(() {});
+                    }
+                  },
+                  icon: const Icon(Icons.add, color: Colors.white),
+                  label: const Text('Add New Category',
+                      style: TextStyle(color: Colors.white)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF007AFF),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Custom Categories List
+                const Text('Custom Categories:',
+                    style: TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: CustomCategoryManager.customCategories.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'No custom categories yet.\nTap + to add one!',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Color(0xFF8E8E93)),
+                          ),
+                        )
+                      : ListView.builder(
+                          itemCount:
+                              CustomCategoryManager.customCategories.length,
+                          itemBuilder: (context, index) {
+                            final category =
+                                CustomCategoryManager.customCategories[index];
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF2C2C2E),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                    color: category.color.withOpacity(0.3)),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 40,
+                                    height: 40,
+                                    decoration: BoxDecoration(
+                                      color: category.color.withOpacity(0.2),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Icon(category.icon,
+                                        color: category.color, size: 20),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          category.name,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Keywords: ${category.keywords.join(", ")}',
+                                          style: const TextStyle(
+                                            color: Color(0xFF8E8E93),
+                                            fontSize: 12,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  IconButton(
+                                    onPressed: () {
+                                      showDialog(
+                                        context: context,
+                                        builder: (context) => AlertDialog(
+                                          backgroundColor:
+                                              const Color(0xFF1C1C1E),
+                                          title: const Text('Delete Category',
+                                              style: TextStyle(
+                                                  color: Colors.white)),
+                                          content: Text(
+                                            'Delete "${category.name}" category? Existing transactions will become "Misc".',
+                                            style: const TextStyle(
+                                                color: Color(0xFF8E8E93)),
+                                          ),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () =>
+                                                  Navigator.pop(context),
+                                              child: const Text('Cancel',
+                                                  style: TextStyle(
+                                                      color:
+                                                          Color(0xFF8E8E93))),
+                                            ),
+                                            TextButton(
+                                              onPressed: () {
+                                                CustomCategoryManager
+                                                    .removeCategory(
+                                                        category.id);
+                                                Navigator.pop(context);
+                                                setDialogState(() {});
+                                                parentSetState(() {});
+                                              },
+                                              child: const Text('Delete',
+                                                  style: TextStyle(
+                                                      color:
+                                                          Color(0xFFFF3B30))),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                    icon: const Icon(Icons.delete,
+                                        color: Color(0xFFFF3B30), size: 20),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Done',
+                  style: TextStyle(color: Color.fromARGB(255, 160, 138, 255))),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -5017,59 +5673,50 @@ class _SypshytHomePageState extends State<SypshytHomePage>
                               fontWeight: FontWeight.w700,
                               color: textColor)),
                       const SizedBox(height: 15),
-                      IOSFixedTextField(
+                      CupertinoTextField(
                         controller: nameController,
                         style: TextStyle(
                             color: textColor, fontFamily: 'SFProDisplay'),
-                        decoration: InputDecoration(
-                          fillColor: inputFieldColor,
-                          filled: true,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: borderColor),
-                          ),
-                          contentPadding: const EdgeInsets.all(16),
-                          hintText: 'Your Name',
-                          hintStyle:
-                              TextStyle(color: hintTextColor.withOpacity(0.5)),
+                        decoration: BoxDecoration(
+                          color: inputFieldColor,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: borderColor),
                         ),
+                        padding: const EdgeInsets.all(16),
+                        placeholder: 'Your Name',
+                        placeholderStyle:
+                            TextStyle(color: hintTextColor.withOpacity(0.5)),
                       ),
                       const SizedBox(height: 12),
-                      IOSFixedTextField(
+                      CupertinoTextField(
                         controller: nicknameController,
                         style: TextStyle(
                             color: textColor, fontFamily: 'SFProDisplay'),
-                        decoration: InputDecoration(
-                          fillColor: inputFieldColor,
-                          filled: true,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: borderColor),
-                          ),
-                          contentPadding: const EdgeInsets.all(16),
-                          hintText: 'Nickname',
-                          hintStyle:
-                              TextStyle(color: hintTextColor.withOpacity(0.5)),
+                        decoration: BoxDecoration(
+                          color: inputFieldColor,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: borderColor),
                         ),
+                        padding: const EdgeInsets.all(16),
+                        placeholder: 'Nickname',
+                        placeholderStyle:
+                            TextStyle(color: hintTextColor.withOpacity(0.5)),
                       ),
                       const SizedBox(height: 12),
-                      IOSFixedTextField(
+                      CupertinoTextField(
                         controller: budgetController,
                         keyboardType: TextInputType.number,
                         style: TextStyle(
                             color: textColor, fontFamily: 'SFProDisplay'),
-                        decoration: InputDecoration(
-                          fillColor: inputFieldColor,
-                          filled: true,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: borderColor),
-                          ),
-                          contentPadding: const EdgeInsets.all(16),
-                          hintText: 'Daily Budget (₹)',
-                          hintStyle:
-                              TextStyle(color: hintTextColor.withOpacity(0.5)),
+                        decoration: BoxDecoration(
+                          color: inputFieldColor,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: borderColor),
                         ),
+                        padding: const EdgeInsets.all(16),
+                        placeholder: 'Daily Budget (₹)',
+                        placeholderStyle:
+                            TextStyle(color: hintTextColor.withOpacity(0.5)),
                       ),
                       const SizedBox(height: 30),
                       GestureDetector(
@@ -5162,5 +5809,111 @@ class _SypshytHomePageState extends State<SypshytHomePage>
         lastStreakUpdate = DateTime.parse(lastUpdate);
       }
     });
+  }
+}
+// Add this at the very bottom of your main.dart file
+
+class NumbersOnlyInput extends StatelessWidget {
+  final TextEditingController controller;
+  final String placeholder;
+  final Color textColor;
+  final Color inputFieldColor;
+  final Color borderColor;
+  final Color hintTextColor;
+  final VoidCallback? onSubmitted;
+  final bool allowDecimals;
+
+  const NumbersOnlyInput({
+    super.key,
+    required this.controller,
+    required this.placeholder,
+    required this.textColor,
+    required this.inputFieldColor,
+    required this.borderColor,
+    required this.hintTextColor,
+    this.onSubmitted,
+    this.allowDecimals = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      keyboardType: const TextInputType.numberWithOptions(
+        decimal: true,
+        signed: false,
+      ),
+      inputFormatters: [
+        FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+        _SingleDecimalFormatter(),
+        LengthLimitingTextInputFormatter(10),
+      ],
+      onSubmitted: (_) => onSubmitted?.call(),
+      style: TextStyle(
+        color: textColor,
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
+        fontFamily: 'SFProDisplay',
+      ),
+      decoration: InputDecoration(
+        filled: true,
+        fillColor: inputFieldColor,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: borderColor),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: borderColor),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFF007AFF), width: 2),
+        ),
+        contentPadding: const EdgeInsets.all(16),
+        prefixIcon: const Padding(
+          padding: EdgeInsets.only(left: 16, right: 8),
+          child: Text(
+            '₹',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Color.fromARGB(255, 85, 85, 85),
+            ),
+          ),
+        ),
+        prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+        hintText: placeholder,
+        hintStyle: TextStyle(
+          color: hintTextColor.withOpacity(0.5),
+          fontSize: 16,
+          fontFamily: 'SFProDisplay',
+        ),
+      ),
+    );
+  }
+}
+
+class _SingleDecimalFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final newText = newValue.text;
+    final decimalCount = '.'.allMatches(newText).length;
+
+    if (decimalCount > 1) {
+      return oldValue;
+    }
+
+    if (newText.startsWith('.')) {
+      return TextEditingValue(
+        text: '0$newText',
+        selection: TextSelection.collapsed(offset: newText.length + 1),
+      );
+    }
+
+    return newValue;
   }
 }

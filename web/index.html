@@ -6,81 +6,71 @@
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="SWYPSHYT - Personal Finance Tracker">
   
-  <!-- iOS PWA Meta Tags -->
-  <meta name="apple-mobile-web-app-capable" content="yes">
+  <!-- iOS PWA Meta Tags - SAFE VERSION -->
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="SWYPSHYT">
-  <meta name="apple-touch-fullscreen" content="yes">
-  <meta name="format-detection" content="telephone=no">
-  
-  <!-- Viewport with iOS keyboard fix -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
   <link rel="icon" type="image/png" href="favicon.png"/>
   <title>SWYPSHYT</title>
   <link rel="manifest" href="manifest.json">
 
-  <!-- Firebase SDKs (v9 compat) -->
+  <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
   <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyAJyYak8LtKIcF-WfghX5NcRzni2KYlRm4",
-      authDomain: "swypshyt-finance.firebaseapp.com",
-      projectId: "swypshyt-finance",
-      storageBucket: "swypshyt-finance.firebasestorage.app",
-      messagingSenderId: "80025318352",
-      appId: "1:80025318352:web:081c4e0dcee78d82373fd5"
-    };
-    
-    firebase.initializeApp(firebaseConfig);
-    console.log("🔥 Firebase initialized for SWYPSHYT!");
+    // SAFE Firebase initialization
+    try {
+      const firebaseConfig = {
+        apiKey: "AIzaSyAJyYak8LtKIcF-WfghX5NcRzni2KYlRm4",
+        authDomain: "swypshyt-finance.firebaseapp.com",
+        projectId: "swypshyt-finance",
+        storageBucket: "swypshyt-finance.firebasestorage.app",
+        messagingSenderId: "80025318352",
+        appId: "1:80025318352:web:081c4e0dcee78d82373fd5"
+      };
+      
+      firebase.initializeApp(firebaseConfig);
+      console.log("🔥 Firebase initialized for SWYPSHYT!");
+    } catch (e) {
+      console.error("🔥 Firebase init failed:", e);
+    }
   </script>
 
-  <!-- iOS Keyboard Fix Styles -->
   <style>
-    html, body {
-      height: 100vh;
+    body {
       margin: 0;
       padding: 0;
-      overflow: hidden;
-      -webkit-user-select: none;
+      background: #121212;
+      /* Prevent iOS bugs */
       -webkit-touch-callout: none;
-      -webkit-text-size-adjust: 100%;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      overflow: hidden;
     }
-
-    /* iOS Input Fixes */
+    
+    /* SAFE iOS keyboard fix - NO RECURSION */
     input, textarea, select {
       font-size: 16px !important;
       -webkit-appearance: none;
       border-radius: 0;
       background-color: transparent;
-      -webkit-user-select: text !important;
-      -webkit-touch-callout: default !important;
     }
-
-    input:focus, textarea:focus {
+    
+    input:focus, textarea:focus, select:focus {
       font-size: 16px !important;
-      zoom: 1;
       outline: none;
+      zoom: 1;
     }
-
-    /* Prevent zoom on input focus */
-    @media screen and (-webkit-min-device-pixel-ratio: 0) {
-      input, textarea, select {
-        font-size: 16px !important;
-      }
+    
+    /* Prevent zoom on double tap */
+    * {
+      touch-action: manipulation;
     }
-
-    /* PWA specific styles */
-    .flutter-view {
-      height: 100vh;
-      width: 100vw;
-    }
-
-    /* Loading indicator */
+    
     .loading {
       display: flex;
       justify-content: center;
@@ -88,145 +78,97 @@
       height: 100vh;
       background: #121212;
       color: #F5C97E;
-      font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: Arial, sans-serif;
       font-size: 18px;
     }
+
+    /* Keyboard handling */
+    .keyboard-open {
+      height: auto !important;
+      min-height: 100vh;
+    }
   </style>
-
-  <!-- iOS Virtual Keyboard Fix Script -->
-  <script>
-    // iOS PWA Keyboard Fix
-    document.addEventListener('DOMContentLoaded', function() {
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-      const isPWA = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
-      
-      if (isIOS && isPWA) {
-        console.log('🍎 iOS PWA detected - applying keyboard fixes');
-        
-        // Force keyboard to appear on input focus
-        function forceIOSKeyboard(element) {
-          // Create temporary input to trigger keyboard
-          const tempInput = document.createElement('input');
-          tempInput.style.position = 'absolute';
-          tempInput.style.top = '-1000px';
-          tempInput.style.left = '-1000px';
-          tempInput.style.height = '0';
-          tempInput.style.opacity = '0';
-          tempInput.style.fontSize = '16px';
-          tempInput.setAttribute('readonly', true);
-          
-          document.body.appendChild(tempInput);
-          
-          // Focus sequence
-          tempInput.focus();
-          tempInput.click();
-          
-          setTimeout(() => {
-            element.focus();
-            element.click();
-            document.body.removeChild(tempInput);
-          }, 100);
-        }
-        
-        // Listen for input focus events
-        document.addEventListener('focusin', function(e) {
-          if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
-            console.log('📱 Input focused - forcing iOS keyboard');
-            forceIOSKeyboard(e.target);
-          }
-        });
-        
-        // Viewport adjustment for keyboard
-        let originalHeight = window.innerHeight;
-        
-        window.addEventListener('resize', function() {
-          const currentHeight = window.innerHeight;
-          const heightDiff = originalHeight - currentHeight;
-          
-          if (heightDiff > 150) {
-            // Keyboard is likely open
-            document.body.style.height = currentHeight + 'px';
-            console.log('⌨️ Keyboard detected - adjusting viewport');
-          } else {
-            // Keyboard is likely closed
-            document.body.style.height = '100vh';
-            console.log('⌨️ Keyboard hidden - restoring viewport');
-          }
-        });
-        
-        // Touch events for better input handling
-        document.addEventListener('touchstart', function(e) {
-          if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
-            e.target.focus();
-          }
-        }, { passive: false });
-        
-        // Prevent zoom on double tap
-        let lastTouchEnd = 0;
-        document.addEventListener('touchend', function(event) {
-          const now = (new Date()).getTime();
-          if (now - lastTouchEnd <= 300) {
-            event.preventDefault();
-          }
-          lastTouchEnd = now;
-        }, false);
-      }
-    });
-    
-    // Enhanced input focusing for Flutter web
-    window.addEventListener('flutter-first-frame', function() {
-      console.log('🦋 Flutter loaded - applying additional iOS fixes');
-      
-      // Monitor for dynamically created inputs
-      const observer = new MutationObserver(function(mutations) {
-        mutations.forEach(function(mutation) {
-          mutation.addedNodes.forEach(function(node) {
-            if (node.nodeType === 1) {
-              const inputs = node.querySelectorAll ? node.querySelectorAll('input, textarea') : [];
-              inputs.forEach(function(input) {
-                input.style.fontSize = '16px';
-                input.addEventListener('focus', function() {
-                  this.style.fontSize = '16px';
-                  // Scroll into view
-                  setTimeout(() => {
-                    this.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                  }, 200);
-                });
-              });
-            }
-          });
-        });
-      });
-      
-      observer.observe(document.body, { childList: true, subtree: true });
-    });
-  </script>
-
-  <!-- Flutter loader -->
-  <script src="flutter.js" defer></script>
 </head>
 <body>
   <div class="loading" id="loading">
     💰 Loading SWYPSHYT...
   </div>
   
+  <!-- SAFE Flutter Script Loading -->
+  <script src="flutter.js" defer></script>
   <script>
+    // Prevent multiple initializations
+    let flutterInitialized = false;
+    
     window.addEventListener('load', function(ev) {
-      // Hide loading indicator
+      if (flutterInitialized) return;
+      flutterInitialized = true;
+      
+      // Hide loading
       const loading = document.getElementById('loading');
       if (loading) {
         loading.style.display = 'none';
       }
       
-      // Download main.dart.js and run the app
-      _flutter.loader.loadEntrypoint({
-        serviceWorker: {
-          serviceWorkerVersion: serviceWorkerVersion,
+      // SAFE Flutter initialization
+      if (typeof _flutter !== 'undefined') {
+        _flutter.loader.loadEntrypoint({
+          serviceWorker: {
+            serviceWorkerVersion: null,
+          }
+        }).then(function(engineInitializer) {
+          return engineInitializer.initializeEngine();
+        }).then(function(appRunner) {
+          return appRunner.runApp();
+        }).catch(function(error) {
+          console.error('Flutter failed to load:', error);
+          document.body.innerHTML = '<div style="color: red; padding: 20px; text-align: center; font-family: Arial;">App failed to load.<br><br>Error: ' + error.message + '<br><br>Please refresh the page.</div>';
+        });
+      } else {
+        console.error('Flutter loader not found');
+        document.body.innerHTML = '<div style="color: red; padding: 20px; text-align: center; font-family: Arial;">Flutter loader not found.<br><br>Please check your build configuration and refresh.</div>';
+      }
+    });
+
+    // SAFE keyboard handling - NO RECURSION
+    document.addEventListener('DOMContentLoaded', function() {
+      let isKeyboardHandling = false;
+      
+      // Simple focus handler
+      document.addEventListener('focusin', function(e) {
+        if (isKeyboardHandling) return;
+        
+        const target = e.target;
+        if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+          isKeyboardHandling = true;
+          document.body.classList.add('keyboard-open');
+          
+          setTimeout(() => {
+            isKeyboardHandling = false;
+          }, 300);
         }
-      }).then(function(engineInitializer) {
-        return engineInitializer.initializeEngine();
-      }).then(function(appRunner) {
-        return appRunner.runApp();
+      });
+      
+      document.addEventListener('focusout', function(e) {
+        document.body.classList.remove('keyboard-open');
+      });
+      
+      // Simple resize handler
+      window.addEventListener('resize', function() {
+        if (isKeyboardHandling) return;
+        
+        const height = window.innerHeight;
+        const width = window.innerWidth;
+        
+        if (height && width) {
+          const isKeyboardOpen = height < (width * 0.75);
+          
+          if (isKeyboardOpen) {
+            document.body.classList.add('keyboard-open');
+          } else {
+            document.body.classList.remove('keyboard-open');
+          }
+        }
       });
     });
   </script>

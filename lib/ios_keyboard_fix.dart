@@ -5,135 +5,149 @@ import 'dart:html' as html;
 
 class IOSKeyboardFix {
   static bool _isInitialized = false;
+  static bool _isProcessing = false; // Prevent recursion
 
   static void initialize() {
     if (!kIsWeb || _isInitialized) return;
 
     _isInitialized = true;
 
-    // Force iOS PWA keyboard fixes
-    _addIOSKeyboardListeners();
+    // Add simple iOS viewport fix
     _addViewportFixes();
-    _addInputFocusFixes();
-  }
-
-  static void _addIOSKeyboardListeners() {
-    // Add meta tag for iOS keyboard
-    final meta = html.document.createElement('meta');
-    meta.setAttribute('name', 'format-detection');
-    meta.setAttribute('content', 'telephone=no');
-    html.document.head?.append(meta);
-
-    // Force iOS to show keyboard
-    html.document.addEventListener('focusin', (event) {
-      final target = event.target;
-      if (target is html.InputElement || target is html.TextAreaElement) {
-        _forceIOSKeyboard(target);
-      }
-    });
-  }
-
-  static void _forceIOSKeyboard(dynamic input) {
-    // Create temporary input to force keyboard
-    final tempInput = html.InputElement();
-    tempInput.style.position = 'absolute';
-    tempInput.style.top = '-1000px';
-    tempInput.style.left = '-1000px';
-    tempInput.style.opacity = '0';
-    tempInput.style.height = '0';
-    tempInput.style.fontSize = '16px'; // Prevent zoom
-
-    html.document.body?.append(tempInput);
-
-    // Focus sequence to force keyboard
-    tempInput.focus();
-
-    Future.delayed(const Duration(milliseconds: 50), () {
-      if (input.runtimeType.toString().contains('Input') ||
-          input.runtimeType.toString().contains('TextArea')) {
-        input.focus();
-      }
-      tempInput.remove();
-    });
+    _addSimpleKeyboardFix();
   }
 
   static void _addViewportFixes() {
-    // Add viewport meta for iOS
-    var viewport = html.document.querySelector('meta[name="viewport"]');
-    if (viewport != null) {
-      viewport.setAttribute('content',
-          'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover');
-    }
-
-    // Prevent zoom on input focus
-    final style = html.document.createElement('style');
-    style.text = '''
-      input, textarea, select {
-        font-size: 16px !important;
-        transform: translateZ(0);
-        -webkit-appearance: none;
-        border-radius: 0;
+    try {
+      // Add/update viewport meta tag
+      var viewport = html.document.querySelector('meta[name="viewport"]');
+      if (viewport != null) {
+        viewport.setAttribute('content',
+            'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover');
       }
-      
-      input:focus, textarea:focus {
-        font-size: 16px !important;
-        zoom: 1;
-      }
-      
-      .ios-input-fix {
-        -webkit-user-select: text !important;
-        -webkit-touch-callout: default !important;
-      }
-    ''';
-    html.document.head?.append(style);
-  }
 
-  static void _addInputFocusFixes() {
-    // Listen for keyboard events
-    html.window.addEventListener('resize', (event) {
-      final height = html.window.innerHeight;
-      final width = html.window.innerWidth;
+      // Add CSS for iOS input fix
+      final style = html.document.createElement('style');
+      style.text = '''
+        /* iOS Input Fixes */
+        input, textarea, select {
+          font-size: 16px !important;
+          -webkit-appearance: none;
+          border-radius: 0;
+          transform: translateZ(0);
+        }
+        
+        input:focus, textarea:focus {
+          font-size: 16px !important;
+          zoom: 1;
+          outline: none;
+        }
+        
+        /* Prevent zoom on input focus */
+        @media screen and (-webkit-min-device-pixel-ratio: 0) {
+          input, textarea, select {
+            font-size: 16px !important;
+          }
+        }
+        
+        /* iOS PWA fixes */
+        body {
+          -webkit-touch-callout: none;
+          -webkit-user-select: none;
+          -webkit-tap-highlight-color: transparent;
+        }
+        
+        /* Keyboard handling */
+        .keyboard-open {
+          height: auto !important;
+          min-height: auto !important;
+        }
+      ''';
+      html.document.head?.append(style);
 
-      // If height significantly reduced, keyboard is probably open
-      if (height != null && width != null) {
-        final isKeyboardOpen = height < (width * 0.75);
-        _handleKeyboardState(isKeyboardOpen);
-      }
-    });
-  }
-
-  static void _handleKeyboardState(bool isOpen) {
-    if (isOpen) {
-      // Keyboard is open - adjust viewport
-      html.document.body?.style.height = 'auto';
-      html.document.documentElement?.style.height = 'auto';
-    } else {
-      // Keyboard is closed - restore viewport
-      html.document.body?.style.height = '100vh';
-      html.document.documentElement?.style.height = '100vh';
+      print('✅ iOS viewport and CSS fixes applied');
+    } catch (e) {
+      print('❌ Error applying viewport fixes: $e');
     }
   }
 
-  // Helper method to fix input field
-  static void fixInputField(String elementId) {
-    if (!kIsWeb) return;
+  static void _addSimpleKeyboardFix() {
+    try {
+      // Simple focus event listener - NO RECURSION
+      html.document.addEventListener('focusin', (event) {
+        if (_isProcessing) return; // Prevent recursion
 
-    final element = html.document.getElementById(elementId);
-    if (element != null) {
-      element.classes.add('ios-input-fix');
+        final target = event.target;
+        if (target is html.InputElement || target is html.TextAreaElement) {
+          _isProcessing = true;
 
-      // Add touch events for iOS
-      element.addEventListener('touchstart', (event) {
-        event.preventDefault();
-        if (element is html.InputElement) {
-          element.focus();
+          // Simple delay to ensure keyboard appears
+          Future.delayed(const Duration(milliseconds: 100), () {
+            _isProcessing = false;
+          });
+
+          // Add keyboard-open class to body
+          html.document.body?.classes.add('keyboard-open');
         }
       });
+
+      html.document.addEventListener('focusout', (event) {
+        // Remove keyboard-open class
+        html.document.body?.classes.remove('keyboard-open');
+      });
+
+      // Simple window resize handler
+      html.window.addEventListener('resize', (event) {
+        if (_isProcessing) return;
+
+        final height = html.window.innerHeight;
+        final width = html.window.innerWidth;
+
+        if (height != null && width != null) {
+          final isKeyboardOpen = height < (width * 0.75);
+
+          if (isKeyboardOpen) {
+            html.document.body?.classes.add('keyboard-open');
+          } else {
+            html.document.body?.classes.remove('keyboard-open');
+          }
+        }
+      });
+
+      print('✅ Simple iOS keyboard fix applied');
+    } catch (e) {
+      print('❌ Error applying keyboard fix: $e');
+    }
+  }
+
+  // Simplified helper method - NO RECURSION
+  static void fixInputField(String elementId) {
+    if (!kIsWeb || _isProcessing) return;
+
+    try {
+      final element = html.document.getElementById(elementId);
+      if (element != null) {
+        // Just add a simple CSS class
+        element.classes.add('ios-input-fix');
+
+        // Simple focus handler
+        element.addEventListener('touchstart', (event) {
+          if (element is html.InputElement && !_isProcessing) {
+            _isProcessing = true;
+            element.focus();
+            Future.delayed(const Duration(milliseconds: 50), () {
+              _isProcessing = false;
+            });
+          }
+        });
+      }
+    } catch (e) {
+      print('❌ Error fixing input field: $e');
     }
   }
 }
 
-// Custom TextField widget with iOS fixes
+// SAFE Custom TextField widget - NO RECURSION
 class IOSFixedTextField extends StatefulWidget {
   final TextEditingController? controller;
   final String? hintText;
@@ -147,7 +161,7 @@ class IOSFixedTextField extends StatefulWidget {
   final TextCapitalization textCapitalization;
 
   const IOSFixedTextField({
-    Key? key,
+    super.key,
     this.controller,
     this.hintText,
     this.keyboardType,
@@ -158,7 +172,7 @@ class IOSFixedTextField extends StatefulWidget {
     this.autofocus = false,
     this.maxLines = 1,
     this.textCapitalization = TextCapitalization.none,
-  }) : super(key: key);
+  });
 
   @override
   State<IOSFixedTextField> createState() => _IOSFixedTextFieldState();
@@ -166,6 +180,7 @@ class IOSFixedTextField extends StatefulWidget {
 
 class _IOSFixedTextFieldState extends State<IOSFixedTextField> {
   late FocusNode _focusNode;
+  bool _isTriggering = false; // Prevent recursion
 
   @override
   void initState() {
@@ -174,7 +189,7 @@ class _IOSFixedTextFieldState extends State<IOSFixedTextField> {
 
     if (kIsWeb) {
       _focusNode.addListener(() {
-        if (_focusNode.hasFocus) {
+        if (_focusNode.hasFocus && !_isTriggering) {
           _triggerIOSKeyboard();
         }
       });
@@ -182,13 +197,20 @@ class _IOSFixedTextFieldState extends State<IOSFixedTextField> {
   }
 
   void _triggerIOSKeyboard() {
-    if (!kIsWeb) return;
+    if (!kIsWeb || _isTriggering) return;
 
-    // Force iOS to show keyboard
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (mounted && _focusNode.hasFocus) {
-        SystemChannels.textInput.invokeMethod('TextInput.show');
+    _isTriggering = true;
+
+    // Simple keyboard trigger - NO RECURSION
+    Future.delayed(const Duration(milliseconds: 50), () {
+      if (mounted && _focusNode.hasFocus && !_isTriggering) {
+        try {
+          SystemChannels.textInput.invokeMethod('TextInput.show');
+        } catch (e) {
+          print('Keyboard trigger error: $e');
+        }
       }
+      _isTriggering = false;
     });
   }
 
