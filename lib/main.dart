@@ -134,9 +134,33 @@ class CustomCategory {
       name: json['name'],
       keywords: List<String>.from(json['keywords']),
       color: Color(json['color']),
-      icon: IconData(json['icon'], fontFamily: 'MaterialIcons'),
+      icon: _getIconFromCodePoint(json['icon']), // ✅ FIXED
       createdAt: DateTime.parse(json['createdAt']),
     );
+  }
+
+// Add this helper method in the CustomCategory class
+  static IconData _getIconFromCodePoint(int codePoint) {
+    // Map common codePoints to actual IconData constants
+    const Map<int, IconData> iconMap = {
+      57358: Icons.person,
+      58015: Icons.family_restroom,
+      59128: Icons.local_bar,
+      57803: Icons.sports_soccer,
+      58662: Icons.pets,
+      57598: Icons.car_rental,
+      57859: Icons.school,
+      59076: Icons.medical_services,
+      57668: Icons.fitness_center,
+      58659: Icons.videogame_asset,
+      59235: Icons.travel_explore,
+      58494: Icons.home_repair_service,
+      58778: Icons.spa,
+      58221: Icons.theater_comedy,
+    };
+
+    // Return the mapped icon or default to Icons.category
+    return iconMap[codePoint] ?? Icons.category;
   }
 }
 
